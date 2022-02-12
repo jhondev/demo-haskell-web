@@ -21,6 +21,17 @@ description: Please see the README on GitHub at <https://github.com/githubuser/h
 
 dependencies:
   - base >= 4.7 && < 5
+  - classy-prelude
+  - time
+  - time-lens
+  - pcre-heavy
+  - template-haskell
+
+default-extensions:
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - QuasiQuotes
+  - TemplateHaskell
 
 library:
   source-dirs: src
