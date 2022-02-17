@@ -22,5 +22,3 @@ lengthBetween minLen maxLen msg val =
 regexMatches :: Regex -> e -> Validation e Text
 regexMatches regex msg val =
   if val =~ regex then Nothing else Just msg
-
-mkEmail = "hello"

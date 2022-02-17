@@ -26,6 +26,7 @@ dependencies:
   - time-lens
   - pcre-heavy
   - template-haskell
+  - mtl
 
 default-extensions:
   - NoImplicitPrelude

@@ -1,6 +1,7 @@
 module Domain.Auth where
 
 import ClassyPrelude
+import Control.Monad.Except
 import Domain.Validation
 import Text.Regex.PCRE.Heavy
 
@@ -8,8 +9,8 @@ newtype Email = Email {emailRaw :: Text} deriving (Show, Eq)
 
 -- data EmailValidationErr = EmailValidationErrInvalidEmail
 
--- rawEmail :: Email -> Text
--- rawEmail = emailRaw
+rawEmail :: Email -> Text
+rawEmail = emailRaw
 
 mkEmail :: Text -> Either [Text] Email
 mkEmail =
@@ -46,3 +47,70 @@ data Auth = Auth
     authPassword :: Password
   }
   deriving (Show, Eq)
+
+type VerificationCode = Text
+
+type UserId = Int
+
+type SessionId = Text
+
+data RegistrationError
+  = RegistrationErrorEmailTaken
+  deriving (Show, Eq)
+
+data EmailVerificationError
+  = EmailVerificationInvalidCode
+  deriving (Show, Eq)
+
+data LoginError
+  = LoginErrorInvalidAuth
+  | LoginErrorEmailNotVerified
+  deriving (Show, Eq)
+
+class Monad m => AuthRepo m where
+  addAuth :: Auth -> m (Either RegistrationError VerificationCode)
+  setEmailAsVerified :: VerificationCode -> m (Either EmailVerificationError ())
+  findUserByAuth :: Auth -> m (Maybe (UserId, Bool))
+  findEmailFromUserId :: UserId -> m (Maybe Email)
+
+class Monad m => EmailVerificationNotif m where
+  notifyEmailVerification :: Email -> VerificationCode -> m ()
+
+class Monad m => SessionRepo m where
+  newSession :: UserId -> m SessionId
+  findUserIdBySessionId :: SessionId -> m (Maybe UserId)
+
+register :: (AuthRepo m, EmailVerificationNotif m) => Auth -> m (Either RegistrationError ())
+register auth = runExceptT $ do
+  vCode <- ExceptT $ addAuth auth
+  let email = authEmail auth
+  lift $ notifyEmailVerification email vCode
+
+verifyEmail :: AuthRepo m => VerificationCode -> m (Either EmailVerificationError ())
+verifyEmail = setEmailAsVerified
+
+login :: (AuthRepo m, SessionRepo m) => Auth -> m (Either LoginError SessionId)
+login auth = runExceptT $ do
+  result <- lift $ findUserByAuth auth
+  case result of
+    Nothing -> throwError LoginErrorInvalidAuth
+    Just (_, False) -> throwError LoginErrorEmailNotVerified
+    Just (uId, _) -> lift $ newSession uId
+
+resolveSessionId :: SessionRepo m => SessionId -> m (Maybe UserId)
+resolveSessionId = findUserIdBySessionId
+
+getUser :: AuthRepo m => UserId -> m (Maybe Email)
+getUser = findEmailFromUserId
+
+instance AuthRepo IO where
+  addAuth (Auth email pass) = do
+    putStrLn $ "adding auth: " <> rawEmail email
+    return $ Right "fake verification code"
+  setEmailAsVerified = undefined
+  findUserByAuth = undefined
+  findEmailFromUserId = undefined
+
+instance EmailVerificationNotif IO where
+  notifyEmailVerification email vcode =
+    putStrLn $ "Notify " <> rawEmail email <> " - " <> vcode
